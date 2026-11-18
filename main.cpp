@@ -1,55 +1,107 @@
 #include "raylib.h"
+#include "rcamera.h"
 #include <cstdlib>
+
+constexpr int MAX_COLUMNS = 20;
 
 int main() {
 
     const int screenWidth = 800;
     const int screenHeight = 450;
-    int currFpsTarget = 60;
 
     InitWindow(screenWidth, screenHeight, "Window");
-    SetTargetFPS(currFpsTarget);
+    SetTargetFPS(60);
 
-    Vector2 deltaCircle { 0, (float)screenHeight / 3.0f };
-    Vector2 frameCircle { 0, (float)screenHeight * (2.0f / 3.0f)};
+    Camera3D camera = { 0 };
+    camera.position = (Vector3){ 10.0f, 10.0f, 10.0f }; 
+    camera.target = (Vector3){ 0.0f, 0.0f, 0.0f };
+    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f }; 
+    camera.fovy = 45.0f;  
+    camera.projection = CAMERA_PERSPECTIVE; 
+    int cameraMode = CAMERA_FIRST_PERSON;
 
-    const float speed = 10.0f;
-    const float circleRadius = 32.0f;
+
+    float heights[MAX_COLUMNS] = { 0 };
+    Vector3 positions[MAX_COLUMNS] = { 0 };
+    Color colors[MAX_COLUMNS] = { 0 };
+
+    for (int i = 0; i < MAX_COLUMNS; i++)
+    {
+        heights[i] = (float)GetRandomValue(1, 12);
+        positions[i] = (Vector3){ (float)GetRandomValue(-15, 15), heights[i]/2.0f, (float)GetRandomValue(-15, 15) };
+        colors[i] = (Color){ static_cast<unsigned char>(GetRandomValue(20, 255)), static_cast<unsigned char>(GetRandomValue(10, 55)), 30, 255 };
+    }
+
+    DisableCursor();
 
     while (!WindowShouldClose()) {
-        
-        float mouseWheel = GetMouseWheelMove();
-        if (currFpsTarget >= 0) {
-            currFpsTarget += (int)mouseWheel;
-        } else {
-            currFpsTarget = 0;
+
+        // Switch camera mode
+        if (IsKeyPressed(KEY_ONE))
+        {
+            cameraMode = CAMERA_FREE;
+            camera.up = (Vector3){ 0.0f, 1.0f, 0.0f }; // Reset roll
         }
-        SetTargetFPS(currFpsTarget);
 
-        deltaCircle.x += GetFrameTime() * 5.0f * speed;
-        frameCircle.x += 0.5f * speed;
-
-        if (deltaCircle.x > screenWidth) deltaCircle.x = 0;
-        if (frameCircle.x > screenWidth) frameCircle.x = 0;
-
-        if (IsKeyPressed(KEY_R)) {
-            deltaCircle.x = 0;
-            frameCircle.x = 0;
+        if (IsKeyPressed(KEY_TWO))
+        {
+            cameraMode = CAMERA_FIRST_PERSON;
+            camera.up = (Vector3){ 0.0f, 1.0f, 0.0f }; // Reset roll
         }
+
+        if (IsKeyPressed(KEY_THREE))
+        {
+            cameraMode = CAMERA_THIRD_PERSON;
+            camera.up = (Vector3){ 0.0f, 1.0f, 0.0f }; // Reset roll
+        }
+
+        if (IsKeyPressed(KEY_FOUR))
+        {
+            cameraMode = CAMERA_ORBITAL;
+            camera.up = (Vector3){ 0.0f, 1.0f, 0.0f }; // Reset roll
+        }
+
+        UpdateCamera(&camera, CAMERA_FREE);
 
         BeginDrawing();
             ClearBackground(RAYWHITE);
+            BeginMode3D(camera);
+                DrawPlane((Vector3){ 0.0f, 0.0f, 0.0f }, (Vector2){ 32.0f, 32.0f }, LIGHTGRAY); // Draw ground
+                DrawCube((Vector3){ -16.0f, 2.5f, 0.0f }, 1.0f, 5.0f, 32.0f, BLUE);     // Draw a blue wall
+                DrawCube((Vector3){ 16.0f, 2.5f, 0.0f }, 1.0f, 5.0f, 32.0f, LIME);      // Draw a green wall
+                DrawCube((Vector3){ 0.0f, 2.5f, 16.0f }, 32.0f, 5.0f, 1.0f, GOLD);      // Draw a yellow wall
 
-            DrawCircleV(deltaCircle, circleRadius, RED);
-            DrawCircleV(frameCircle, circleRadius, BLUE);
+                // Draw some cubes around
+                for (int i = 0; i < MAX_COLUMNS; i++)
+                {
+                    DrawCube(positions[i], 2.0f, heights[i], 2.0f, colors[i]);
+                    DrawCubeWires(positions[i], 2.0f, heights[i], 2.0f, MAROON);
+                }
 
-            const char* fpsText = TextFormat("FPS: %i (Target: %i)", GetFPS(), currFpsTarget);
-            DrawText(fpsText, 10, 10, 20, DARKGRAY);
-            DrawText(TextFormat("Frame time: %02.02f ms", GetFrameTime()*1000.0f), 10, 30, 20, DARKGRAY);
-            DrawText("Use the scroll wheel to change the fps limit, r to reset", 10, 50, 20, DARKGRAY);
+                // Draw player cube
+                if (cameraMode == CAMERA_THIRD_PERSON)
+                {
+                    DrawCube(camera.target, 0.5f, 0.5f, 0.5f, PURPLE);
+                    DrawCubeWires(camera.target, 0.5f, 0.5f, 0.5f, DARKPURPLE);
+                }
+    
+            EndMode3D();
+            // Draw info boxes
+            DrawRectangle(5, 5, 330, 100, Fade(SKYBLUE, 0.5f));
+            DrawRectangleLines(5, 5, 330, 100, BLUE);
 
-            DrawText("FUNC: x += GetFrameTime()*speed", 10, 90, 20, RED);
-            DrawText("FUNC: x += speed", 10, 240, 20, BLUE);
+            DrawText("Camera controls:", 15, 15, 10, BLACK);
+            DrawText("- Move keys: W, A, S, D, Space, Left-Ctrl", 15, 30, 10, BLACK);
+            DrawText("- Look around: arrow keys or mouse", 15, 45, 10, BLACK);
+            DrawText("- Zoom keys: num-plus, num-minus or mouse scroll", 15, 75, 10, BLACK);
+
+            DrawRectangle(600, 5, 195, 100, Fade(SKYBLUE, 0.5f));
+            DrawRectangleLines(600, 5, 195, 100, BLUE);
+
+            DrawText("Camera status:", 610, 15, 10, BLACK);
+            DrawText(TextFormat("- Position: (%06.3f, %06.3f, %06.3f)", camera.position.x, camera.position.y, camera.position.z), 610, 60, 10, BLACK);
+            DrawText(TextFormat("- Target: (%06.3f, %06.3f, %06.3f)", camera.target.x, camera.target.y, camera.target.z), 610, 75, 10, BLACK);
+            DrawText(TextFormat("- Up: (%06.3f, %06.3f, %06.3f)", camera.up.x, camera.up.y, camera.up.z), 610, 90, 10, BLACK);
         EndDrawing();
     }
 
